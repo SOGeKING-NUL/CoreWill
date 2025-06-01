@@ -6,7 +6,6 @@ import {ReentrancyGuard} from "../lib/openzeppelin-contracts/contracts/utils/Ree
 
 contract Inheritance is Ownable, ReentrancyGuard{
 
-    address immutable public s_owner;
     address private s_beneficiary;
     address private s_monitoringServiceAddress;
     uint256 private s_amount;
@@ -21,22 +20,24 @@ contract Inheritance is Ownable, ReentrancyGuard{
     error Inhertiance__AmountTransferToBeneficiaryFailed();
 
     //events
+    event ActivityUpdated(uint256 timestamp);
     event InheritanceTriggered(uint256 timestamp);
     event InheritanceClaimed(address beneficiary, uint256 amount);
     event MonitoringDeactivated();
 
     constructor(
+        address _owner,
         address _beneficiary,
         address _monitoringServiceAddress,
         uint256 _amount,
         uint256 _inactivityTime        
-    ) payable Ownable(msg.sender) {
-
+    ) payable Ownable(_owner) {
+        require(_owner != address(0), "Invalid owner address");
         require(_beneficiary != address(0), "Invalid beneficiary address");
         require(_monitoringServiceAddress != address(0), "Invalid monitoring service address");
-        require(msg.value == _amount, "Amount must be greater than zero");
+        require(_amount > 0, "Amount must be greater than zero");
+        require(msg.value == _amount, "Sent value must equal specified amount");
 
-        s_owner = msg.sender;
         s_beneficiary = _beneficiary;
         s_monitoringServiceAddress = _monitoringServiceAddress;
         s_amount = _amount;
@@ -47,8 +48,8 @@ contract Inheritance is Ownable, ReentrancyGuard{
         isActiveForMonitoring = true;
     }   
 
-    modifier onlyOwner() override{
-        require(msg.sender == s_owner, "Only owner can call this");
+    modifier onlyActiveOwner() {
+        require(msg.sender == owner(), "Only owner can call this");
         require(!inheritanceTriggered, "Inheritance already triggered, owner cant pull out funds anymore");
         _;
     }
@@ -71,6 +72,7 @@ contract Inheritance is Ownable, ReentrancyGuard{
         
         if (walletHasActivity) {
             lastActivityTimestamp = block.timestamp;
+            emit ActivityUpdated(block.timestamp);
         } else {
             if ((block.timestamp - lastActivityTimestamp) >= s_inactivityTime) {
                 inheritanceTriggered = true;
@@ -83,7 +85,6 @@ contract Inheritance is Ownable, ReentrancyGuard{
     }
 
     function claimInheritance() external nonReentrant onlyBeneficiary {
-        
         (bool success,)= payable(s_beneficiary).call{value: s_amount}("");
         if (!success) {
             revert Inhertiance__AmountTransferToBeneficiaryFailed();
@@ -96,10 +97,24 @@ contract Inheritance is Ownable, ReentrancyGuard{
         emit MonitoringDeactivated();        
     }
 
-    //getters
+    function emergencyWithdraw() external onlyActiveOwner nonReentrant {
+        isActiveForMonitoring = false;
+        
+        uint256 balance = address(this).balance;
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Withdrawal failed");
+        
+        emit MonitoringDeactivated();
+    }
 
+    function resetActivity() external onlyActiveOwner {
+        lastActivityTimestamp = block.timestamp;
+        emit ActivityUpdated(block.timestamp);
+    }
+
+    // getters
     function getOwner() external view returns (address) {
-        return s_owner;
+        return owner();
     }
 
     function getBeneficiary() external view returns (address) {
@@ -109,6 +124,7 @@ contract Inheritance is Ownable, ReentrancyGuard{
     function getMonitoringServiceAddress() external view returns (address) {
         return s_monitoringServiceAddress;
     }
+    
     function getAmount() external view returns (uint256) {
         return s_amount;
     }
@@ -160,4 +176,8 @@ contract Inheritance is Ownable, ReentrancyGuard{
         );
     }
 
+    //fallback    
+    receive() external payable {}
+
+    fallback() external payable {}    
 }
