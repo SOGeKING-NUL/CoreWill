@@ -18,6 +18,7 @@ contract Inheritance is Ownable, ReentrancyGuard{
 
     //errors
     error Inhertiance__AmountTransferToBeneficiaryFailed();
+    error Inheritance__WithdrawalFailed();
 
     //events
     event ActivityUpdated(uint256 timestamp);
@@ -102,7 +103,9 @@ contract Inheritance is Ownable, ReentrancyGuard{
         
         uint256 balance = address(this).balance;
         (bool success, ) = payable(owner()).call{value: balance}("");
-        require(success, "Withdrawal failed");
+        if (!success){
+            revert Inheritance__WithdrawalFailed();
+        }
         
         emit MonitoringDeactivated();
     }
