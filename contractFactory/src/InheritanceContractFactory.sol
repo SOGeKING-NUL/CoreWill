@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: SEE LICENSE IN LICENSE
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
 import "./Inheritance.sol";
@@ -99,7 +99,7 @@ contract InheritanceFactory is Ownable{
         contractActive[contractAddress] = false;
         emit MonitoringDeactivated(contractAddress);
     }
-    
+
     function emergencyDeactivateContract(address contractAddress) external onlyOwner {
     if (contractActive[contractAddress]) {
         _removeFromActiveContracts(contractAddress);
