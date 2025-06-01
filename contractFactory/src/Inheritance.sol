@@ -68,12 +68,14 @@ contract Inheritance is Ownable, ReentrancyGuard{
         _;
     }
 
-    function processInheritanceCheck(bool walletHasActivity) external onlyMonitoringService nonReentrant {
+    function processInheritanceCheck(bool walletHasActivity) external onlyMonitoringService nonReentrant returns(bool needsDeactivation) {
         require(!inheritanceTriggered, "Inheritance already triggered");
         
         if (walletHasActivity) {
             lastActivityTimestamp = block.timestamp;
             emit ActivityUpdated(block.timestamp);
+
+            return false;
         } else {
             if ((block.timestamp - lastActivityTimestamp) >= s_inactivityTime) {
                 inheritanceTriggered = true;
@@ -81,7 +83,11 @@ contract Inheritance is Ownable, ReentrancyGuard{
 
                 isActiveForMonitoring = false; 
                 emit MonitoringDeactivated();
+
+                return true; 
             }
+
+            return false;
         }
     }
 
