@@ -7,15 +7,18 @@ import {ReentrancyGuard} from "../lib/openzeppelin-contracts/contracts/utils/Ree
 contract Inheritance is Ownable, ReentrancyGuard{
 
     address immutable public s_owner;
-    address public s_beneficiary;
-    address public s_monitoringServiceAddress;
-    uint256 public s_amount;
-    uint256 public s_inactivityTime;
-    uint256 public lastActivityTimestamp;
+    address private s_beneficiary;
+    address private s_monitoringServiceAddress;
+    uint256 private s_amount;
+    uint256 private s_inactivityTime;
+    uint256 private lastActivityTimestamp;
 
-    bool public inheritanceTriggered;
-    bool public inheritanceClaimed;
-    bool public isActiveForMonitoring;
+    bool private inheritanceTriggered;
+    bool private inheritanceClaimed;
+    bool private isActiveForMonitoring;
+
+    //errors
+    error Inhertiance__AmountTransferToBeneficiaryFailed();
 
     //events
     event InheritanceTriggered(uint256 timestamp);
@@ -50,10 +53,111 @@ contract Inheritance is Ownable, ReentrancyGuard{
         _;
     }
 
+    modifier onlyBeneficiary(){
+        require(msg.sender == s_beneficiary, "Only beneficiary can call this");
+        require(inheritanceTriggered, "Inheritance not triggered yet");
+        require(!inheritanceClaimed, "Inheritance already claimed");
+        _;
+    }
+
     modifier onlyMonitoringService() {
         require(msg.sender == s_monitoringServiceAddress, "Only monitoring service can call this");
         require(isActiveForMonitoring, "Contract no longer needs monitoring");
         _;
     }
-    
+
+    function processInheritanceCheck(bool walletHasActivity) external onlyMonitoringService nonReentrant {
+        require(!inheritanceTriggered, "Inheritance already triggered");
+        
+        if (walletHasActivity) {
+            lastActivityTimestamp = block.timestamp;
+        } else {
+            if ((block.timestamp - lastActivityTimestamp) >= s_inactivityTime) {
+                inheritanceTriggered = true;
+                emit InheritanceTriggered(block.timestamp);
+
+                isActiveForMonitoring = false; 
+                emit MonitoringDeactivated();
+            }
+        }
+    }
+
+    function claimInheritance() external nonReentrant onlyBeneficiary {
+        
+        (bool success,)= payable(s_beneficiary).call{value: s_amount}("");
+        if (!success) {
+            revert Inhertiance__AmountTransferToBeneficiaryFailed();
+        }
+
+        inheritanceClaimed = true;
+        emit InheritanceClaimed(s_beneficiary, s_amount);
+
+        isActiveForMonitoring = false;
+        emit MonitoringDeactivated();        
+    }
+
+    //getters
+
+    function getOwner() external view returns (address) {
+        return s_owner;
+    }
+
+    function getBeneficiary() external view returns (address) {
+        return s_beneficiary;
+    }
+
+    function getMonitoringServiceAddress() external view returns (address) {
+        return s_monitoringServiceAddress;
+    }
+    function getAmount() external view returns (uint256) {
+        return s_amount;
+    }
+
+    function getInactivityTime() external view returns (uint256) {
+        return s_inactivityTime;
+    }
+
+    function getLastActivityTimestamp() external view returns (uint256) {
+        return lastActivityTimestamp;
+    } 
+
+    function getIsInheritanceTriggered() external view returns (bool) {
+        return inheritanceTriggered;
+    }
+
+    function getIsInheritanceClaimed() external view returns (bool) {
+        return inheritanceClaimed;
+    }
+
+    function getIsActiveForMonitoring() external view returns (bool) {
+        return isActiveForMonitoring;
+    }
+
+    function getContractDetails() external view returns (
+        address _beneficiary,
+        uint256 _amount,
+        uint256 _inactivityTime,
+        uint256 _lastActivity,
+        bool _triggered,
+        bool _claimed,
+        uint256 _timeRemaining,
+        bool _needsMonitoring
+    ) {
+        uint256 timeRemaining = 0;
+        if (!inheritanceTriggered && (block.timestamp - lastActivityTimestamp) < s_inactivityTime) {
+            timeRemaining = s_inactivityTime - (block.timestamp - lastActivityTimestamp);
+        }
+
+        return (
+            s_beneficiary,
+            s_amount,
+            s_inactivityTime,
+            lastActivityTimestamp,
+            inheritanceTriggered,
+            inheritanceClaimed,
+            timeRemaining,
+            isActiveForMonitoring
+        );
+    }
+
 }
