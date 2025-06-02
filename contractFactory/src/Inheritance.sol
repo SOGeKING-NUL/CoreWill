@@ -7,6 +7,7 @@ import {ReentrancyGuard} from "../lib/openzeppelin-contracts/contracts/utils/Ree
 contract Inheritance is Ownable, ReentrancyGuard{
 
     address private s_beneficiary;
+    address private s_factoryAddress; 
     address private s_monitoringServiceAddress;
     uint256 private s_amount;
     uint256 private s_inactivityTime;
@@ -40,6 +41,7 @@ contract Inheritance is Ownable, ReentrancyGuard{
         require(msg.value == _amount, "Sent value must equal specified amount");
 
         s_beneficiary = _beneficiary;
+        s_factoryAddress = msg.sender;
         s_monitoringServiceAddress = _monitoringServiceAddress;
         s_amount = _amount;
         s_inactivityTime = _inactivityTime;
@@ -62,13 +64,17 @@ contract Inheritance is Ownable, ReentrancyGuard{
         _;
     }
 
-    modifier onlyMonitoringService() {
-        require(msg.sender == s_monitoringServiceAddress, "Only monitoring service can call this");
+   modifier onlyAuthorizedMonitoring() {
+        require(
+            msg.sender == s_monitoringServiceAddress || 
+            msg.sender == s_factoryAddress, 
+            "Only monitoring service or factory can call this"
+        );
         require(isActiveForMonitoring, "Contract no longer needs monitoring");
         _;
     }
 
-    function processInheritanceCheck(bool walletHasActivity) external onlyMonitoringService nonReentrant returns(bool needsDeactivation) {
+    function processInheritanceCheck(bool walletHasActivity) external onlyAuthorizedMonitoring nonReentrant returns(bool needsDeactivation) {
         require(!inheritanceTriggered, "Inheritance already triggered");
         
         if (walletHasActivity) {

@@ -69,8 +69,7 @@ contract InheritanceFactory is Ownable{
         return contractAddress;
     }
 
-    function processContractMonitoring(address contractAddress, bool walletHasActivity) external onlyMonitoringService{
-
+    function processContractMonitoring(address contractAddress, bool walletHasActivity) external onlyMonitoringService {
         if (!contractActive[contractAddress]) {
             revert InheritanceFactory__ContractAlreadyInactive();
         }
@@ -80,8 +79,7 @@ contract InheritanceFactory is Ownable{
                 _removeFromActiveContracts(contractAddress);
             }
         } catch {
-
-            // If call fails, assume contract is inactive and remove it
+            // Only remove if the contract call actually fails (contract destroyed, etc.)
             _removeFromActiveContracts(contractAddress);
         }
     }
@@ -101,10 +99,10 @@ contract InheritanceFactory is Ownable{
     }
 
     function emergencyDeactivateContract(address contractAddress) external onlyOwner {
-    if (contractActive[contractAddress]) {
-        _removeFromActiveContracts(contractAddress);
+        if (contractActive[contractAddress]) {
+            _removeFromActiveContracts(contractAddress);
+        }
     }
-}
 
     //getters
     function getDeployedContracts() external view returns (address[] memory) {
