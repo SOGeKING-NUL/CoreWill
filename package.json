@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "node next-server.js",
+    "monitoring": "node monitoring-worker.ts",
+    "start:combined": "concurrently \"npm run start\" \"npm run monitoring\""
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.3.0",
