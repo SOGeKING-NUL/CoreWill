@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { loadMonitoringStatus } from '@/lib/monitoring-service'
+import { loadMonitoringStatus } from '@/lib/monitoring-service.mjs'
 
 export async function GET() {
   try {

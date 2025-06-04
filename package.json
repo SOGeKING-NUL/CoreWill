@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node next-server.js",
-    "monitoring": "node monitoring-worker.js",
+    "monitoring": "node monitoring-worker.mjs",
     "start:combined": "concurrently \"npm run start\" \"npm run monitoring\""
   },
   "dependencies": {

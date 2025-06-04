@@ -1,4 +1,4 @@
-const { getMonitoringService } = require('./lib/monitoring-service'); //imports the js file, not ts
+import { getMonitoringService } from './lib/monitoring-service.mjs'
 
 async function main() {
   console.log('🔧 Starting monitoring worker process...')
