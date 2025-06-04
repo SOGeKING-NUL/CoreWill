@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getMonitoringService } from '@/lib/monitoring-service';
+import { loadMonitoringStatus } from '@/lib/monitoring-service';
 export async function GET() {
     try {
-        const monitoringService = getMonitoringService();
-        const status = monitoringService.getStatus();
+        const status = loadMonitoringStatus();
         return NextResponse.json({ success: true, status });
     }
     catch (error) {
+        console.error('Error getting monitoring status:', error);
         return NextResponse.json({
             success: false,
             error: 'Failed to get monitoring status'

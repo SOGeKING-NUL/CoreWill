@@ -1,41 +1,9 @@
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-
 dotenv.config();
-
 const FACTORY_ADDRESS = process.env.FACTORY_ADDRESS || '';
 const MONITORING_PRIVATE_KEY = process.env.MONITORING_PRIVATE_KEY;
 const RPC_URL = process.env.NEXT_CORE_RPC_URL;
-const STATUS_FILE = path.join(process.cwd(), 'monitoring-status.json');
-
-function saveMonitoringStatus(status) {
-  try {
-    fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
-  } catch (error) {
-    console.error('Failed to save monitoring status:', error);
-  }
-}
-
-function loadMonitoringStatus() {
-  try {
-    if (fs.existsSync(STATUS_FILE)) {
-      const data = fs.readFileSync(STATUS_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Failed to load monitoring status:', error);
-  }
-  
-  return {
-    isRunning: false,
-    walletAddress: null,
-    lastCheck: null,
-    startedAt: null
-  };
-}
-
 const FACTORY_ABI = [
     {
         "inputs": [
@@ -349,7 +317,6 @@ const FACTORY_ABI = [
         "type": "function"
     }
 ];
-
 const INHERITANCE_ABI = [
     {
         "inputs": [
@@ -736,188 +703,127 @@ const INHERITANCE_ABI = [
         "type": "receive"
     }
 ];
-
 class InheritanceMonitoringService {
     constructor() {
+        this.isRunning = false;
+        this.intervalId = null;
         this.provider = new ethers.JsonRpcProvider(RPC_URL);
         this.monitoringWallet = new ethers.Wallet(MONITORING_PRIVATE_KEY, this.provider);
         this.factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, this.monitoringWallet);
         this.previousBalances = new Map();
-        
-        // Load initial status from file
-        const savedStatus = loadMonitoringStatus();
-        this.isRunning = savedStatus.isRunning || false;
-        this.intervalId = null;
     }
-
     async startMonitoring() {
         if (this.isRunning) {
             console.log('Monitoring service is already running');
             return;
         }
-
         console.log('🚀 Starting Inheritance Monitoring Service...');
         console.log('📍 Factory Address:', FACTORY_ADDRESS);
         console.log('👤 Monitoring Wallet:', this.monitoringWallet.address);
-        
         this.isRunning = true;
-        
-        // Save status to file
-        this.updateStatus();
-        
         // Check balance
         const balance = await this.provider.getBalance(this.monitoringWallet.address);
         console.log('💰 Monitoring Wallet Balance:', ethers.formatEther(balance), 'tCORE2');
-        
         if (balance < ethers.parseEther('0.01')) {
             console.warn('⚠️ Low balance warning! May not have enough gas for transactions');
         }
-        
         // Start monitoring loop every 60 seconds
         this.intervalId = setInterval(() => {
             this.checkAllContracts().catch(console.error);
         }, 60000);
-
         // Run initial check
         await this.checkAllContracts();
     }
-
     stopMonitoring() {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
         }
         this.isRunning = false;
-        this.updateStatus();
         console.log('🛑 Monitoring service stopped');
     }
-
-    updateStatus() {
-        const status = {
-            isRunning: this.isRunning,
-            walletAddress: this.monitoringWallet.address,
-            lastCheck: new Date().toISOString(),
-            startedAt: this.isRunning ? new Date().toISOString() : null
-        };
-        
-        saveMonitoringStatus(status);
-    }
-
     async checkAllContracts() {
         try {
             console.log('\n🔍 Checking active contracts at:', new Date().toISOString());
-            
-            this.updateStatus();
-            
             const activeContracts = await this.factory.getActiveContracts();
             console.log(`📋 Found ${activeContracts.length} active contracts:`, activeContracts);
-            
             if (activeContracts.length === 0) {
                 console.log('📭 No active contracts to monitor');
                 return;
             }
-
             for (const contractAddress of activeContracts) {
                 console.log(`\n🔎 Processing contract: ${contractAddress}`);
                 await this.monitorContract(contractAddress);
                 // Small delay between contracts
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
-            
             console.log('✅ Completed monitoring cycle\n');
-        } catch (error) {
+        }
+        catch (error) {
             console.error('❌ Error checking contracts:', error);
         }
     }
-
     async monitorContract(contractAddress) {
         try {
             const contract = new ethers.Contract(contractAddress, INHERITANCE_ABI, this.provider);
-            
-            const [
-                needsMonitoring,
-                owner,
-                lastActivityTimestamp,
-                inactivityTime,
-                isTriggered
-            ] = await Promise.all([
+            // Get contract details for debugging
+            const [needsMonitoring, owner, lastActivityTimestamp, inactivityTime, isTriggered] = await Promise.all([
                 contract.getIsActiveForMonitoring(),
                 contract.getOwner(),
                 contract.getLastActivityTimestamp(),
                 contract.getInactivityTime(),
                 contract.getIsInheritanceTriggered()
             ]);
-
             console.log(`📊 Contract Details:`);
             console.log(`   Owner: ${owner}`);
             console.log(`   Needs Monitoring: ${needsMonitoring}`);
             console.log(`   Is Triggered: ${isTriggered}`);
             console.log(`   Last Activity: ${new Date(Number(lastActivityTimestamp) * 1000).toISOString()}`);
             console.log(`   Inactivity Time: ${inactivityTime} seconds (${Number(inactivityTime) / 3600} hours)`);
-
             // Calculate time since last activity
             const currentTime = Math.floor(Date.now() / 1000);
             const timeSinceActivity = currentTime - Number(lastActivityTimestamp);
             const shouldTrigger = timeSinceActivity >= Number(inactivityTime);
-
             console.log(`⏰ Time Analysis:`);
             console.log(`   Current Time: ${new Date(currentTime * 1000).toISOString()}`);
             console.log(`   Time Since Activity: ${timeSinceActivity} seconds (${timeSinceActivity / 3600} hours)`);
             console.log(`   Should Trigger: ${shouldTrigger}`);
-
             if (!needsMonitoring) {
                 console.log('⏭️ Contract no longer needs monitoring, skipping...');
                 return;
             }
-
             if (isTriggered) {
                 console.log('🎯 Contract already triggered, skipping...');
                 return;
             }
-
             // Check for wallet activity
             console.log(`🔍 Checking wallet activity for owner: ${owner}`);
             const hasActivity = await this.checkWalletActivity(owner);
             console.log(`📈 Wallet Activity Result: ${hasActivity}`);
-
             // ALWAYS call processContractMonitoring regardless of activity
             // The smart contract will handle the logic internally
             console.log(`📞 Calling processContractMonitoring with activity: ${hasActivity}`);
-            
             try {
                 // Estimate gas first
-                const gasEstimate = await this.factory.processContractMonitoring.estimateGas(
-                    contractAddress,
-                    hasActivity
-                );
+                const gasEstimate = await this.factory.processContractMonitoring.estimateGas(contractAddress, hasActivity);
                 console.log(`⛽ Estimated Gas: ${gasEstimate}`);
-
-                const tx = await this.factory.processContractMonitoring(
-                    contractAddress,
-                    hasActivity,
-                    { 
-                        gasLimit: gasEstimate * BigInt(120) / BigInt(100), // 20% buffer
-                        maxFeePerGas: ethers.parseUnits('20', 'gwei'),
-                        maxPriorityFeePerGas: ethers.parseUnits('2', 'gwei')
-                    }
-                );
-                
+                const tx = await this.factory.processContractMonitoring(contractAddress, hasActivity, {
+                    gasLimit: gasEstimate * BigInt(120) / BigInt(100), // 20% buffer
+                    maxFeePerGas: ethers.parseUnits('20', 'gwei'),
+                    maxPriorityFeePerGas: ethers.parseUnits('2', 'gwei')
+                });
                 console.log(`📤 Transaction sent: ${tx.hash}`);
-                
                 const receipt = await tx.wait();
                 if (receipt) {
                     console.log(`✅ Transaction confirmed in block ${receipt.blockNumber}`);
                     console.log(`⛽ Gas Used: ${receipt.gasUsed}`);
-                    
                     // Check if inheritance was triggered by examining events
                     if (receipt.logs && receipt.logs.length > 0) {
                         console.log(`📋 Transaction emitted ${receipt.logs.length} events`);
-                        
                         // Check if contract was deactivated
                         const factoryInterface = new ethers.Interface([
                             'event MonitoringDeactivated(address indexed contractAddress)'
                         ]);
-                        
                         for (const log of receipt.logs) {
                             try {
                                 const parsed = factoryInterface.parseLog({
@@ -927,30 +833,27 @@ class InheritanceMonitoringService {
                                 if (parsed && parsed.name === 'MonitoringDeactivated') {
                                     console.log(`🎯 Contract ${contractAddress} was deactivated - inheritance triggered!`);
                                 }
-                            } catch (e) {
+                            }
+                            catch (e) {
                                 // Not a factory event, continue
                             }
                         }
                     }
                 }
-                
-            } catch (txError) {
+            }
+            catch (txError) {
                 console.error(`❌ Transaction failed:`, txError);
-                
                 if (txError.code === 'CALL_EXCEPTION') {
                     console.error(`💥 Contract call reverted:`, txError.reason);
                 }
-                
                 if (txError.code === 'INSUFFICIENT_FUNDS') {
                     console.error(`💸 Insufficient funds for gas`);
                 }
-                
                 throw txError;
             }
-            
-        } catch (error) {
+        }
+        catch (error) {
             console.error(`❌ Error monitoring contract ${contractAddress}:`, error);
-            
             // Log more details about the error
             if (error.code) {
                 console.error(`Error Code: ${error.code}`);
@@ -960,42 +863,41 @@ class InheritanceMonitoringService {
             }
         }
     }
-
     async checkWalletActivity(walletAddress) {
         try {
             console.log(`🔍 Checking activity for wallet: ${walletAddress}`);
-            
+            // Get current balance
             const currentBalance = await this.provider.getBalance(walletAddress);
             const previousBalance = this.previousBalances.get(walletAddress);
-            
             console.log(`💰 Balance Check:`);
             console.log(`   Current: ${ethers.formatEther(currentBalance)} tCORE2`);
             console.log(`   Previous: ${previousBalance ? ethers.formatEther(previousBalance) : 'Unknown'} tCORE2`);
-            
+            // Update stored balance
             this.previousBalances.set(walletAddress, currentBalance);
-            
+            // Check if balance changed (only if we have a previous balance)
             if (previousBalance !== undefined) {
                 const balanceChanged = currentBalance !== previousBalance;
                 if (balanceChanged) {
                     console.log(`💰 Balance change detected for ${walletAddress}`);
                     return true;
                 }
-            } else {
+            }
+            else {
                 console.log(`📝 First time checking this wallet, storing initial balance`);
             }
-
+            // Check recent transactions more thoroughly
             const latestBlock = await this.provider.getBlockNumber();
             const fromBlock = Math.max(0, latestBlock - 100); // Check last 100 blocks
-            
             console.log(`🔍 Checking blocks ${fromBlock} to ${latestBlock}`);
-            
             // Check for native token transactions by examining recent blocks
             for (let blockNum = latestBlock; blockNum > fromBlock && blockNum > 0; blockNum--) {
                 try {
                     // Get block with full transaction details
                     const block = await this.provider.getBlock(blockNum, true);
                     if (block && block.transactions && Array.isArray(block.transactions)) {
+                        // Type guard to ensure we have transaction objects
                         for (const tx of block.transactions) {
+                            // Check if tx is a transaction object (not just a hash string)
                             if (typeof tx === 'object' && tx !== null && 'from' in tx && 'to' in tx) {
                                 const transaction = tx;
                                 if (transaction.from === walletAddress || transaction.to === walletAddress) {
@@ -1005,34 +907,33 @@ class InheritanceMonitoringService {
                             }
                         }
                     }
-                } catch (blockError) {
+                }
+                catch (blockError) {
                     console.warn(`⚠️ Error checking block ${blockNum}:`, blockError);
                     continue;
                 }
             }
-            
             console.log(`📭 No recent activity detected for ${walletAddress}`);
             return false;
-            
-        } catch (error) {
+        }
+        catch (error) {
             console.error(`❌ Error checking wallet activity for ${walletAddress}:`, error);
-            return false; 
+            return false; // Assume no activity on error
         }
     }
-
     getStatus() {
-        return loadMonitoringStatus();
+        return {
+            isRunning: this.isRunning,
+            walletAddress: this.monitoringWallet.address,
+            lastCheck: new Date().toISOString()
+        };
     }
 }
-
 // Singleton instance
 let monitoringServiceInstance = null;
-
 export function getMonitoringService() {
     if (!monitoringServiceInstance) {
         monitoringServiceInstance = new InheritanceMonitoringService();
     }
     return monitoringServiceInstance;
 }
-
-export { saveMonitoringStatus, loadMonitoringStatus };
