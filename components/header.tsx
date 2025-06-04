@@ -1,15 +1,42 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useAppKit } from '@reown/appkit/react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuTrigger,} from '@/components/ui/dropdown-menu'
-import { ChevronDown, LogOut } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { ChevronDown, LogOut, AlertTriangle } from 'lucide-react'
 
 export default function Header() {
   const { open } = useAppKit()
   const { address, isConnected, chain } = useAccount()
   const { disconnect } = useDisconnect()
+
+  const [monitoringActive, setMonitoringActive] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (isConnected) {
+        try {
+          const response = await fetch('/api/monitoring/status')
+          const data = await response.json()
+          setMonitoringActive(data?.status?.isRunning ?? false)
+        } catch {
+          setMonitoringActive(false)
+        }
+      } else {
+        setMonitoringActive(null)
+      }
+    }
+    fetchStatus()
+    let interval: NodeJS.Timeout | undefined
+    if (isConnected) {
+      interval = setInterval(fetchStatus, 30000)
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [isConnected])
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
@@ -22,8 +49,34 @@ export default function Header() {
 
   const isCorrectNetwork = chain?.id === 1114
 
+  const getBadgeStyle = () => {
+    if (!isConnected || !isCorrectNetwork) {
+      return isCorrectNetwork ? "default" : "destructive"
+    }
+    
+    if (monitoringActive === null) {
+      return "secondary" // Loading state
+    }
+    
+    return monitoringActive ? "default" : "destructive"
+  }
+
+  const getBadgeClasses = () => {
+    if (!isConnected || !isCorrectNetwork) {
+      return "hidden sm:flex"
+    }
+    
+    if (monitoringActive === null) {
+      return "hidden sm:flex bg-gray-500/20 text-gray-700 border-gray-300"
+    }
+    
+    return monitoringActive 
+      ? "hidden sm:flex bg-green-500/20 text-green-700 border-green-300"
+      : "hidden sm:flex bg-red-500/20 text-red-700 border-red-300"
+  }
+
   return (
-    <div>
+    <div className="fixed top-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md shadow-lg transition-all duration-500">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
 
@@ -46,10 +99,21 @@ export default function Header() {
             ) : (
               <div className="flex items-center gap-2">
 
-                <Badge variant={isCorrectNetwork ? "default" : "destructive"}
-                    className="hidden sm:flex "
+                <Badge 
+                  variant={getBadgeStyle()}
+                  className={getBadgeClasses()}
                 >
-                  {getChainName()}
+                  <div className="flex items-center gap-1.5">
+                    {isCorrectNetwork && monitoringActive === false && (
+                      <AlertTriangle className="h-3 w-3" />
+                    )}
+                    <span>{getChainName()}</span>
+                    {isCorrectNetwork && monitoringActive !== null && (
+                      <div className={`w-1.5 h-1.5 rounded-full ${
+                        monitoringActive ? 'bg-green-500' : 'bg-red-500'
+                      }`} />
+                    )}
+                  </div>
                 </Badge>
 
                 <DropdownMenu>
@@ -60,7 +124,6 @@ export default function Header() {
                       className="flex items-center gap-2"
                     >
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                         <span className="hidden sm:inline">
                           {formatAddress(address!)}
                         </span>
