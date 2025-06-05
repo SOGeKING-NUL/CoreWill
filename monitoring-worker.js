@@ -2,6 +2,7 @@ const { ethers } = require('ethers');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 
 dotenv.config();
 
@@ -744,6 +745,7 @@ class InheritanceMonitoringService {
         this.factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, this.monitoringWallet);
         this.previousBalances = new Map();
         
+        // Load initial status from file
         const savedStatus = loadMonitoringStatus();
         this.isRunning = savedStatus.isRunning || false;
         this.intervalId = null;
@@ -761,8 +763,10 @@ class InheritanceMonitoringService {
         
         this.isRunning = true;
         
+        // Save status to file
         this.updateStatus();
         
+        // Check balance
         const balance = await this.provider.getBalance(this.monitoringWallet.address);
         console.log('💰 Monitoring Wallet Balance:', ethers.formatEther(balance), 'tCORE2');
         
@@ -770,10 +774,12 @@ class InheritanceMonitoringService {
             console.warn('⚠️ Low balance warning! May not have enough gas for transactions');
         }
         
+        // Start monitoring loop every 60 seconds
         this.intervalId = setInterval(() => {
             this.checkAllContracts().catch(console.error);
-        }, 60000); //60 seconds
+        }, 60000);
 
+        // Run initial check
         await this.checkAllContracts();
     }
 
@@ -875,7 +881,8 @@ class InheritanceMonitoringService {
             const hasActivity = await this.checkWalletActivity(owner);
             console.log(`📈 Wallet Activity Result: ${hasActivity}`);
 
-
+            // ALWAYS call processContractMonitoring regardless of activity
+            // The smart contract will handle the logic internally
             console.log(`📞 Calling processContractMonitoring with activity: ${hasActivity}`);
             
             try {
@@ -903,9 +910,11 @@ class InheritanceMonitoringService {
                     console.log(`✅ Transaction confirmed in block ${receipt.blockNumber}`);
                     console.log(`⛽ Gas Used: ${receipt.gasUsed}`);
                     
+                    // Check if inheritance was triggered by examining events
                     if (receipt.logs && receipt.logs.length > 0) {
                         console.log(`📋 Transaction emitted ${receipt.logs.length} events`);
                         
+                        // Check if contract was deactivated
                         const factoryInterface = new ethers.Interface([
                             'event MonitoringDeactivated(address indexed contractAddress)'
                         ]);
@@ -943,6 +952,7 @@ class InheritanceMonitoringService {
         } catch (error) {
             console.error(`❌ Error monitoring contract ${contractAddress}:`, error);
             
+            // Log more details about the error
             if (error.code) {
                 console.error(`Error Code: ${error.code}`);
             }
@@ -1012,15 +1022,87 @@ class InheritanceMonitoringService {
     }
 
     getStatus() {
-        return loadMonitoringStatus();
+        return {
+            isRunning: this.isRunning,
+            walletAddress: this.monitoringWallet.address,
+            lastCheck: new Date().toISOString(),
+            uptime: process.uptime(),
+            memoryUsage: process.memoryUsage()
+        };
     }
 }
 
+// Create monitoring service instance
 function getMonitoringService() {
     if (!global.monitoringServiceInstance) {
         global.monitoringServiceInstance = new InheritanceMonitoringService();
     }
     return global.monitoringServiceInstance;
+}
+
+// HTTP Status Server
+function createStatusServer(monitoringService) {
+    const statusServer = http.createServer((req, res) => {
+        // Set CORS headers
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200);
+            res.end();
+            return;
+        }
+
+        if (req.url === '/status' || req.url === '/health') {
+            try {
+                const status = monitoringService.getStatus();
+                const currentTime = new Date().getTime();
+                const lastCheckTime = new Date(status.lastCheck || 0).getTime();
+                const timeSinceLastCheck = currentTime - lastCheckTime;
+                
+                // Consider healthy if last check was within 5 minutes
+                const isHealthy = status.isRunning && timeSinceLastCheck < 300000;
+                
+                const responseData = {
+                    status: isHealthy ? 'healthy' : 'unhealthy',
+                    monitoring: {
+                        isRunning: status.isRunning,
+                        lastCheck: status.lastCheck,
+                        timeSinceLastCheck: Math.floor(timeSinceLastCheck / 1000), // seconds
+                        walletAddress: status.walletAddress
+                    },
+                    worker: {
+                        uptime: status.uptime,
+                        memoryUsage: status.memoryUsage,
+                        pid: process.pid
+                    },
+                    timestamp: new Date().toISOString()
+                };
+
+                res.writeHead(isHealthy ? 200 : 503, { 
+                    'Content-Type': 'application/json' 
+                });
+                res.end(JSON.stringify(responseData, null, 2));
+                
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    status: 'error', 
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                }));
+            }
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                status: 'not found',
+                availableEndpoints: ['/status', '/health']
+            }));
+        }
+    });
+
+    return statusServer;
 }
 
 // Main worker function
@@ -1036,25 +1118,40 @@ async function main() {
         process.exit(1);
     }
     
+    // Create monitoring service
     const service = getMonitoringService();
+    
+    // Create and start HTTP status server
+    const statusServer = createStatusServer(service);
+    const statusPort = process.env.PORT || 8080;
+    
+    statusServer.listen(statusPort, () => {
+        console.log(`🏥 HTTP Status server running on port ${statusPort}`);
+        console.log(`🔗 Status endpoint: http://localhost:${statusPort}/status`);
+        console.log(`🔗 Health endpoint: http://localhost:${statusPort}/health`);
+    });
+    
+    // Start monitoring service
     await service.startMonitoring();
     
-    process.on('SIGINT', () => {
-        console.log('\n🛑 Received SIGINT, stopping monitoring...');
+    // Handle graceful shutdown
+    const shutdown = () => {
+        console.log('\n🛑 Shutting down services...');
         service.stopMonitoring();
-        process.exit(0);
-    });
+        statusServer.close(() => {
+            console.log('🏥 HTTP Status server stopped');
+            process.exit(0);
+        });
+    };
     
-    process.on('SIGTERM', () => {
-        console.log('\n🛑 Received SIGTERM, stopping monitoring...');
-        service.stopMonitoring();
-        process.exit(0);
-    });
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
     
     // Keep process alive
     process.stdin.resume();
 }
 
+// Start the worker
 main().catch(e => {
     console.error('Monitoring worker crashed:', e);
     process.exit(1);
