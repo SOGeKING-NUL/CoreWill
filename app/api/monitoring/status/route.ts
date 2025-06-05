@@ -2,67 +2,64 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Try HTTP endpoint first (if worker is running)
-    const workerUrl = process.env.WORKER_HEALTH_URL || 'http://localhost:8080/status'
+    const workerStatusUrl = process.env.WORKER_STATUS_URL
     
-    try {
-      const response = await fetch(workerUrl, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(5000) // 5 second timeout
-      })
-      
-      if (response.ok) {
-        const statusData = await response.json()
-        return NextResponse.json({ 
-          success: true, 
-          status: statusData.monitoring,
-          source: 'http'
-        })
-      }
-    } catch (httpError) {
-      console.log('HTTP endpoint not available, trying file system...')
-    }
-    
-    // Fallback to file system
-    const fs = await import('fs')
-    const path = await import('path')
-    const statusFile = path.join(process.cwd(), 'monitoring-status.json')
-    
-    if (fs.existsSync(statusFile)) {
-      const data = fs.readFileSync(statusFile, 'utf8')
-      const status = JSON.parse(data)
-      
-      const lastCheck = new Date(status.lastCheck || 0).getTime()
-      const now = new Date().getTime()
-      const isHealthy = (now - lastCheck) < 300000 // 5 minutes
-      
+    if (!workerStatusUrl) {
       return NextResponse.json({ 
-        success: true, 
-        status: {
-          ...status,
-          isRunning: status.isRunning && isHealthy,
-          workerHealthy: isHealthy
-        },
-        source: 'file'
-      })
+        success: false, 
+        error: 'Worker status URL not configured' 
+      }, { status: 500 })
+    }
+
+    // Fetch status from worker service
+    const response = await fetch(workerStatusUrl, {
+      method: 'GET',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(10000) // 10 seconds
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Worker responded with status: ${response.status}`)
     }
     
-    // No status available
+    const workerData = await response.json()
+    
+    // Transform worker response to match expected format
+    const status = {
+      isRunning: workerData.monitoring?.isRunning || false,
+      walletAddress: workerData.monitoring?.walletAddress || null,
+      lastCheck: workerData.monitoring?.lastCheck || null,
+      timeSinceLastCheck: workerData.monitoring?.timeSinceLastCheck || 0,
+      workerHealthy: workerData.status === 'healthy',
+      uptime: workerData.worker?.uptime || 0,
+      memoryUsage: workerData.worker?.memoryUsage || null
+    }
+    
+    return NextResponse.json({ 
+      success: true, 
+      status,
+      source: 'worker_http'
+    })
+    
+  } catch (error) {
+    console.error('Error fetching worker status:', error)
+    
+    // Return offline status if worker is unreachable
     return NextResponse.json({ 
       success: true, 
       status: { 
         isRunning: false, 
+        walletAddress: null,
         lastCheck: null,
-        message: 'Monitoring service not started yet'
+        timeSinceLastCheck: null,
+        workerHealthy: false,
+        error: 'Worker service unreachable'
       },
-      source: 'none'
+      source: 'error'
     })
-  } catch (error) {
-    console.error('Error getting monitoring status:', error)
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to get monitoring status' 
-    }, { status: 500 })
   }
 }
