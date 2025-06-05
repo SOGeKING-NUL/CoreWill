@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ChevronDown, LogOut, AlertTriangle, Activity, Wifi, WifiOff } from 'lucide-react'
+import Link from 'next/link'
 
 interface MonitoringStatus {
   isRunning: boolean
@@ -190,9 +191,11 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
 
           <div className="flex items-center">
-            <h1 className="text-xl font-bold text-foreground">
-              Core Will
-            </h1>
+            <Link href="/" className="flex items-center">
+              <h1 className="text-xl font-bold text-foreground">
+                Core Will
+              </h1>
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
