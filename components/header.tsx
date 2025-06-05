@@ -70,10 +70,8 @@ export default function Header() {
       }
     }
 
-    // Initial fetch
     fetchStatus()
     
-    // Set up interval only if connected
     let interval: NodeJS.Timeout | undefined
     if (isConnected) {
       interval = setInterval(fetchStatus, 30000) // 30 seconds
@@ -240,22 +238,6 @@ export default function Header() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    {isConnected && isCorrectNetwork && monitoringStatus && (
-                      <>
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground border-b">
-                          <div>Monitoring Status</div>
-                          <div className="font-mono">
-                            {monitoringStatus.walletAddress ? 
-                              `${monitoringStatus.walletAddress.slice(0, 8)}...` : 
-                              'No wallet'
-                            }
-                          </div>
-                          {monitoringStatus.uptime && (
-                            <div>Uptime: {Math.floor(monitoringStatus.uptime / 60)}m</div>
-                          )}
-                        </div>
-                      </>
-                    )}
                     <DropdownMenuItem onClick={() => disconnect()} className="flex items-center gap-2 text-destructive">
                         <LogOut className="h-4 w-4" />
                         Disconnect
