@@ -11,6 +11,7 @@ import UserContractsCard from '@/components/dashboard/UserContractsCard'
 import BeneficiaryContractsCard from '@/components/dashboard/BeneficiaryContractsCard'
 import { ContractDetails } from '@/types/contract'
 import { fetchAllContracts } from '@/lib/contract-utils'
+import Footer from '@/components/footer'
 
 const CHAIN_ID = 1114
 
@@ -92,6 +93,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+        <Footer/>
       </div>
     )
   }
@@ -99,7 +101,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <Header />
-      
       <div className="max-w-7xl mx-auto p-4 pt-20">
         {error && (
           <Card className="mb-6 border-red-200 bg-red-50">
@@ -149,6 +150,7 @@ export default function Dashboard() {
           />
         </div>
       </div>
+      <Footer/>
     </div>
   )
 }

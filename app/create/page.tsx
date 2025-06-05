@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import Header from '@/components/header'
 import { FACTORY_ABI } from '@/lib/abis'
+import Footer from '@/components/footer'
 
 const FACTORY_ADDRESS = '0x8f79150a124bd664CBAB4464dCbE0c80BC1B3D12'
 const CHAIN_ID = 1114
@@ -177,6 +178,7 @@ export default function CreateContract() {
             </CardContent>
           </Card>
         </div>
+        <Footer />
       </div>
     )
   }
@@ -320,6 +322,7 @@ export default function CreateContract() {
           </CardContent>
         </Card>
       </div>
+      <Footer />
     </div>
   )
 }

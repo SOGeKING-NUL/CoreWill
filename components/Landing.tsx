@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ethers } from 'ethers'
+import {FACTORY_ABI} from '@/lib/abis'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,25 +19,10 @@ import {
   Zap
 } from 'lucide-react'
 
-const FACTORY_ADDRESS = '0x8f79150a124bd664CBAB4464dCbE0c80BC1B3D12'
-const RPC_URL = 'https://rpc.test2.btcs.network'
+const FACTORY_ADDRESS = process.env.FACTORY_ADDRESS || "0x8f79150a124bd664CBAB4464dCbE0c80BC1B3D12"
+const RPC_URL = process.env.NEXT_CORE_RPC_URL || "https://rpc.test2.btcs.network"
 
-const FACTORY_ABI = [
-  {
-    "inputs": [],
-    "name": "getActiveContractCount",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getContractCount", 
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  }
-] as const
+
 
 interface StatsData {
   activeContracts: number | null
