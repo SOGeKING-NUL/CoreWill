@@ -5,7 +5,7 @@ import { useAccount, useDisconnect } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ChevronDown, LogOut, AlertTriangle, Activity, Wifi, WifiOff } from 'lucide-react'
+import { ChevronDown, LogOut, AlertTriangle, Activity, Wifi, WifiOff, Droplets } from 'lucide-react'
 import Link from 'next/link'
 
 interface MonitoringStatus {
@@ -131,44 +131,26 @@ export default function Header() {
     return healthy ? "default" : "destructive"
   }
 
-  const getBadgeClasses = () => {
-    const { healthy } = getMonitoringStatus()
-    
-    let baseClasses = "hidden sm:flex items-center gap-1.5 transition-colors"
-    
-    if (!isConnected || !isCorrectNetwork) {
-      return `${baseClasses} bg-red-500/20 text-red-700 border-red-300`
-    }
-    
-    if (healthy === null) {
-      return `${baseClasses} bg-gray-500/20 text-gray-700 border-gray-300`
-    }
-    
-    return healthy 
-      ? `${baseClasses} bg-green-500/20 text-green-700 border-green-300`
-      : `${baseClasses} bg-red-500/20 text-red-700 border-red-300`
-  }
-
   const getStatusIcon = () => {
     if (!isConnected || !isCorrectNetwork) {
-      return <AlertTriangle className="h-3 w-3" />
+      return <AlertTriangle className="h-4 w-4" />
     }
     
     const { status, healthy } = getMonitoringStatus()
     
     if (status === 'loading') {
-      return <Activity className="h-3 w-3 animate-pulse" />
+      return <Activity className="h-4 w-4 animate-pulse" />
     }
     
     if (status === 'error') {
-      return <WifiOff className="h-3 w-3" />
+      return <WifiOff className="h-4 w-4" />
     }
     
     if (healthy) {
-      return <Wifi className="h-3 w-3" />
+      return <Wifi className="h-4 w-4" />
     }
     
-    return <AlertTriangle className="h-3 w-3" />
+    return <AlertTriangle className="h-4 w-4" />
   }
 
   const getStatusDot = () => {
@@ -199,6 +181,22 @@ export default function Header() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Faucet Badge - Same size as wallet connect button */}
+            <Link 
+              href="https://scan.test2.btcs.network/faucet" 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Droplets className="h-4 w-4" />
+                <span>Faucet</span>
+              </Button>
+            </Link>
+
             {!isConnected ? (
               <Button 
                 onClick={() => open()} 
@@ -211,19 +209,24 @@ export default function Header() {
             ) : (
               <div className="flex items-center gap-2">
 
-                <Badge 
-                  variant={getBadgeVariant()}
-                  className={getBadgeClasses()}
+                {/* Monitoring Status Badge - Same size as other buttons */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`flex items-center gap-2 cursor-default ${
+                    !isCorrectNetwork ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-50' :
+                    getMonitoringStatus().healthy === null ? 'border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-50' :
+                    getMonitoringStatus().healthy ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-50' :
+                    'border-red-300 bg-red-50 text-red-700 hover:bg-red-50'
+                  }`}
                   title={lastFetchError || `Last check: ${monitoringStatus?.lastCheck ? new Date(monitoringStatus.lastCheck).toLocaleTimeString() : 'Never'}`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    {getStatusIcon()}
-                    <span className="text-xs font-medium">
-                      {isCorrectNetwork ? statusText : getChainName()}
-                    </span>
-                    {getStatusDot()}
-                  </div>
-                </Badge>
+                  {getStatusIcon()}
+                  <span className="text-sm font-medium">
+                    {isCorrectNetwork ? statusText : getChainName()}
+                  </span>
+                  {getStatusDot()}
+                </Button>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -241,6 +244,22 @@ export default function Header() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
+                    {isConnected && isCorrectNetwork && monitoringStatus && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground border-b">
+                          <div>Monitoring Status</div>
+                          <div className="font-mono">
+                            {monitoringStatus.walletAddress ? 
+                              `${monitoringStatus.walletAddress.slice(0, 8)}...` : 
+                              'No wallet'
+                            }
+                          </div>
+                          {monitoringStatus.uptime && (
+                            <div>Uptime: {Math.floor(monitoringStatus.uptime / 60)}m</div>
+                          )}
+                        </div>
+                      </>
+                    )}
                     <DropdownMenuItem onClick={() => disconnect()} className="flex items-center gap-2 text-destructive">
                         <LogOut className="h-4 w-4" />
                         Disconnect
