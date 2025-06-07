@@ -4,6 +4,11 @@ import { Github, X } from 'lucide-react'
 export default function Footer() {
   return (
     <footer className="bg-transparent">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#ffa600]/5 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-[#ffa600]/5 rounded-full blur-3xl"></div>
+      </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Network Section with Social Buttons */}
         <div className="border-t border-gray-800 py-6">
