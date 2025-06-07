@@ -27,3 +27,5 @@ yarn-error.log*
 next-env.d.ts
 
 monitoring-status.json
+
+/.dist/
