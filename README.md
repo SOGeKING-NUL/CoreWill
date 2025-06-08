@@ -53,7 +53,10 @@ Many digital assets are lost in wallets due to improper private key management a
 ## Frontend Showcase 
 
 ### 🔹 Landing Page
-![image](https://github.com/user-attachments/assets/ef3dc31b-0b59-4de4-afbe-751bce108a16)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d75d2d26-a0d4-41f6-8e9f-3f31c2dc677c" alt="Demo GIF" />
+</p>
+
 ### Showcases platform statistics, active contracts, and total distributed amounts fetched from blockchain
 
 #### Wallet-Connect Integration for transactions
@@ -63,11 +66,17 @@ Many digital assets are lost in wallets due to improper private key management a
 
 
 ### 🔹 Dashboard Overview
-![image](https://github.com/user-attachments/assets/3a235360-6bc6-4171-9f75-bcbdb9b7c1e1)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/4529f057-2676-443b-8ef6-1ac3ebc9e920" alt="Demo GIF" />
+</p>
+
 ### Comprehensive dashboard showing user contracts, beneficiary contracts, and claimable amounts
 
 ### 🔹 Create Inheritance Contract
-![image](https://github.com/user-attachments/assets/ee65d4cc-39a6-475a-a7fc-1e1190b2e036)
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/57b2201d-2d19-4548-aa14-143b3a316ff5" alt="Demo GIF" />
+</p>
+
 ### Intuitive form to set beneficiary address, amount, and inactivity period with preset time options
 
 ### 🔹 Contract Management
